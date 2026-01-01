@@ -99,6 +99,19 @@ def tool_get_trends(days: int = 7) -> str:
                     "has_deep": data["sleep"].get("has_deep"),
                     "has_rem": data["sleep"].get("has_rem")
                 }
+            # Include blood pressure if available
+            if "bloodpressure" in data:
+                day_data["blood_pressure"] = {
+                    "systolic_avg": data["bloodpressure"].get("systolic_avg"),
+                    "diastolic_avg": data["bloodpressure"].get("diastolic_avg"),
+                    "elevated_count": data["bloodpressure"].get("elevated_readings", 0)
+                }
+            # Include blood glucose if available
+            if "bloodglucose" in data:
+                day_data["blood_glucose"] = {
+                    "avg": data["bloodglucose"].get("avg"),
+                    "in_range_pct": data["bloodglucose"].get("in_range_pct")
+                }
             results[date] = day_data
     if not results:
         return json.dumps({"error": f"No data for last {days} days."})
@@ -164,6 +177,28 @@ def tool_get_recovery_status() -> str:
     if "respRate" in data:
         status["respiratory_rate"] = data["respRate"].get("avg")
 
+    # Blood pressure
+    if "bloodpressure" in data:
+        status["blood_pressure"] = {
+            "systolic_avg": data["bloodpressure"].get("systolic_avg"),
+            "systolic_min": data["bloodpressure"].get("systolic_min"),
+            "systolic_max": data["bloodpressure"].get("systolic_max"),
+            "diastolic_avg": data["bloodpressure"].get("diastolic_avg"),
+            "diastolic_min": data["bloodpressure"].get("diastolic_min"),
+            "diastolic_max": data["bloodpressure"].get("diastolic_max"),
+            "elevated_readings": data["bloodpressure"].get("elevated_readings", 0)
+        }
+
+    # Blood glucose
+    if "bloodglucose" in data:
+        status["blood_glucose"] = {
+            "avg": data["bloodglucose"].get("avg"),
+            "min": data["bloodglucose"].get("min"),
+            "max": data["bloodglucose"].get("max"),
+            "std_dev": data["bloodglucose"].get("std_dev"),
+            "in_range_pct": data["bloodglucose"].get("in_range_pct")
+        }
+
     # Steps
     if "steps" in data:
         status["steps"] = data["steps"].get("count", 0)
@@ -187,12 +222,12 @@ def tool_get_recovery_status() -> str:
 TOOLS = [
     {
         "name": "get_today",
-        "description": "Get all raw health data for today: HRV, heart rate (with HR zones), sleep stages, steps, exercise minutes, respiratory rate.",
+        "description": "Get all raw health data for today: HRV, heart rate (with HR zones), sleep stages, blood pressure, blood glucose, steps, exercise minutes, respiratory rate.",
         "inputSchema": {"type": "object", "properties": {}, "required": []}
     },
     {
         "name": "get_trends",
-        "description": "Get raw health data over multiple days: HRV, resting HR, exercise minutes, steps, HR zones, sleep data.",
+        "description": "Get raw health data over multiple days: HRV, resting HR, exercise minutes, steps, HR zones, sleep data, blood pressure, blood glucose.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -203,7 +238,7 @@ TOOLS = [
     },
     {
         "name": "get_recovery_status",
-        "description": "Get recovery data: HRV (today vs 14-day baseline), resting HR, sleep, exercise minutes, HR zones, plus last 3 days for training pattern context. Includes user's weekly routine.",
+        "description": "Get recovery data: HRV (today vs 14-day baseline), resting HR, sleep, blood pressure, blood glucose, exercise minutes, HR zones, plus last 3 days for training pattern context. Includes user's weekly routine.",
         "inputSchema": {"type": "object", "properties": {}, "required": []}
     }
 ]

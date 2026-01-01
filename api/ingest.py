@@ -107,12 +107,76 @@ def compute_sleep_stats(values: list) -> dict:
     }
 
 
+def compute_blood_pressure_stats(systolic_values: list, diastolic_values: list) -> dict:
+    """
+    Compute blood pressure statistics from paired systolic/diastolic readings.
+    Threshold: systolic ≥140 OR diastolic ≥90 mmHg (traditional hypertension).
+    """
+    systolic_nums = [v for v in systolic_values if isinstance(v, (int, float))]
+    diastolic_nums = [v for v in diastolic_values if isinstance(v, (int, float))]
+
+    if not systolic_nums or not diastolic_nums:
+        return {"count": 0}
+
+    # Ensure equal number of readings (pair them)
+    count = min(len(systolic_nums), len(diastolic_nums))
+    systolic_nums = systolic_nums[:count]
+    diastolic_nums = diastolic_nums[:count]
+
+    # Count elevated readings
+    elevated = sum(1 for s, d in zip(systolic_nums, diastolic_nums) if s >= 140 or d >= 90)
+
+    return {
+        "systolic_avg": round(sum(systolic_nums) / count, 1),
+        "systolic_min": round(min(systolic_nums), 1),
+        "systolic_max": round(max(systolic_nums), 1),
+        "diastolic_avg": round(sum(diastolic_nums) / count, 1),
+        "diastolic_min": round(min(diastolic_nums), 1),
+        "diastolic_max": round(max(diastolic_nums), 1),
+        "count": count,
+        "elevated_readings": elevated
+    }
+
+
+def compute_blood_glucose_stats(values: list) -> dict:
+    """
+    Compute blood glucose statistics.
+    Target range: 70-180 mg/dL (standard diabetes management).
+    """
+    nums = [v for v in values if isinstance(v, (int, float))]
+    if not nums:
+        return {"count": 0}
+
+    count = len(nums)
+    avg = sum(nums) / count
+
+    # Calculate standard deviation
+    variance = sum((x - avg) ** 2 for x in nums) / count
+    std_dev = variance ** 0.5
+
+    # Calculate percentage in target range (70-180 mg/dL)
+    in_range = sum(1 for v in nums if 70 <= v <= 180)
+    in_range_pct = round(in_range / count * 100, 1)
+
+    return {
+        "avg": round(avg, 1),
+        "min": round(min(nums), 1),
+        "max": round(max(nums), 1),
+        "std_dev": round(std_dev, 1),
+        "count": count,
+        "in_range_pct": in_range_pct
+    }
+
+
 def compute_stats(values: list, key: str = "") -> dict:
     """Compute statistics for health samples."""
     key_lower = key.lower().strip()
 
     if key_lower == "sleep":
         return compute_sleep_stats(values)
+
+    if key_lower == "bloodglucose":
+        return compute_blood_glucose_stats(values)
 
     nums = [v for v in values if isinstance(v, (int, float))]
     if not nums:
@@ -151,7 +215,31 @@ class handler(BaseHTTPRequestHandler):
         existing = redis.get(redis_key)
         health_data = json.loads(existing) if existing else {}
 
+        # Check for paired blood pressure fields
+        bp_systolic_key = None
+        bp_diastolic_key = None
+        for key in form_data.keys():
+            key_lower = key.lower()
+            if "bloodpressuresystolic" in key_lower:
+                bp_systolic_key = key
+            elif "bloodpressurediastolic" in key_lower:
+                bp_diastolic_key = key
+
+        # Process blood pressure as a paired metric
+        if bp_systolic_key and bp_diastolic_key:
+            systolic_raw = form_data[bp_systolic_key][0] if form_data[bp_systolic_key] else ""
+            diastolic_raw = form_data[bp_diastolic_key][0] if form_data[bp_diastolic_key] else ""
+            systolic_values = parse_values(systolic_raw)
+            diastolic_values = parse_values(diastolic_raw)
+            health_data["bloodpressure"] = compute_blood_pressure_stats(systolic_values, diastolic_values)
+
+        # Process all other metrics normally
         for key, values in form_data.items():
+            key_lower = key.lower()
+            # Skip blood pressure fields since they're handled separately
+            if "bloodpressuresystolic" in key_lower or "bloodpressurediastolic" in key_lower:
+                continue
+
             raw = values[0] if values else ""
             parsed = parse_values(raw)
             health_data[key] = compute_stats(parsed, key)

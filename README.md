@@ -85,9 +85,16 @@ Each sub-shortcut does two things:
 | `hrv` | Heart Rate Variability |
 | `heartRate` | Heart Rate |
 | `sleep` | Sleep Analysis |
+| `bloodpressureSystolic` | Blood Pressure (Systolic) |
+| `bloodpressureDiastolic` | Blood Pressure (Diastolic) |
+| `bloodglucose` | Blood Glucose |
 | `steps` | Step Count |
 | `exercise` | Exercise Minutes |
 | `respRate` | Respiratory Rate |
+
+**Notes:**
+- **Blood Pressure**: Create separate sub-shortcuts for systolic and diastolic. They're automatically paired and stored together. Elevated readings (systolic ≥140 OR diastolic ≥90 mmHg) are flagged.
+- **Blood Glucose**: Values in mg/dL. Target range is 70-180 mg/dL (standard diabetes management). The system calculates percentage of readings in range and standard deviation for variability tracking.
 
 <details>
 <summary>Sub-shortcut Example</summary>
