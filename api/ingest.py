@@ -5,7 +5,7 @@ Receives data from iOS Shortcuts and stores in Redis.
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote
 from upstash_redis import Redis
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import json
 import os
 
@@ -15,6 +15,12 @@ redis = Redis(
     url=os.environ.get("UPSTASH_REDIS_REST_URL"),
     token=os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 )
+
+
+def get_pacific_now():
+    """Get current time in Pacific timezone (PST/PDT)."""
+    pacific_tz = timezone(timedelta(hours=-8))  # PST
+    return datetime.now(pacific_tz)
 
 
 def check_auth(headers) -> bool:
@@ -209,7 +215,7 @@ class handler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length).decode("utf-8")
 
         form_data = parse_qs(body)
-        date_key = datetime.now().strftime("%Y-%m-%d")
+        date_key = get_pacific_now().strftime("%Y-%m-%d")
         redis_key = f"health:{date_key}"
 
         existing = redis.get(redis_key)
@@ -244,7 +250,7 @@ class handler(BaseHTTPRequestHandler):
             parsed = parse_values(raw)
             health_data[key] = compute_stats(parsed, key)
 
-        health_data["_updated"] = datetime.now().isoformat()
+        health_data["_updated"] = get_pacific_now().isoformat()
         redis.set(redis_key, json.dumps(health_data))
 
         self.send_response(200)

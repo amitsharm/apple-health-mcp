@@ -4,7 +4,7 @@ Exposes health metrics to Claude via Model Context Protocol.
 """
 from http.server import BaseHTTPRequestHandler
 from upstash_redis import Redis
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, parse_qs
 import json
 import os
@@ -20,6 +20,12 @@ redis = Redis(
     url=os.environ.get("UPSTASH_REDIS_REST_URL"),
     token=os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 )
+
+
+def get_pacific_now():
+    """Get current time in Pacific timezone (PST/PDT)."""
+    pacific_tz = timezone(timedelta(hours=-8))  # PST
+    return datetime.now(pacific_tz)
 
 
 def check_secret(path: str) -> bool:
@@ -53,7 +59,7 @@ def get_hrv_baseline(days: int = 14) -> dict:
     """Calculate HRV baseline from recent history."""
     hrv_values = []
     for i in range(1, days + 1):
-        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        date = (get_pacific_now() - timedelta(days=i)).strftime("%Y-%m-%d")
         data = get_health_data(date)
         if data and "hrv" in data and data["hrv"].get("avg"):
             hrv_values.append(data["hrv"]["avg"])
@@ -69,7 +75,7 @@ def get_hrv_baseline(days: int = 14) -> dict:
 
 def tool_get_today() -> str:
     """Get all raw health metrics for today."""
-    date_key = datetime.now().strftime("%Y-%m-%d")
+    date_key = get_pacific_now().strftime("%Y-%m-%d")
     data = get_health_data(date_key)
     if not data:
         return json.dumps({"error": "No data synced today. Run iOS shortcuts."})
@@ -80,7 +86,7 @@ def tool_get_trends(days: int = 7) -> str:
     """Get raw health trends over multiple days."""
     results = {}
     for i in range(days):
-        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        date = (get_pacific_now() - timedelta(days=i)).strftime("%Y-%m-%d")
         data = get_health_data(date)
         if data:
             day_data = {
@@ -134,7 +140,7 @@ def get_day_summary(data: dict) -> dict:
 
 def tool_get_recovery_status() -> str:
     """Return raw health data for LLM reasoning. No pre-computed recommendations."""
-    date_key = datetime.now().strftime("%Y-%m-%d")
+    date_key = get_pacific_now().strftime("%Y-%m-%d")
     data = get_health_data(date_key)
     baseline = get_hrv_baseline()
 
@@ -206,7 +212,7 @@ def tool_get_recovery_status() -> str:
     # Last 3 days for training pattern context
     recent_days = {}
     for i in range(1, 4):
-        day_key = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        day_key = (get_pacific_now() - timedelta(days=i)).strftime("%Y-%m-%d")
         day_data = get_health_data(day_key)
         summary = get_day_summary(day_data)
         if summary:
